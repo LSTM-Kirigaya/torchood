@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["torchood"]
+exclude = ["test.py", ".gitignore"]
+
+[project]
+name = "torchood"
+version = "0.0.1"
+urls = { text = "https://github.com/LSTM-Kirigaya" }
+authors = [
+    { name = 'lstm-kirigaya', email = '1193466151@qq.com' }
+]
+description = "implement of local laplace filter algorithm"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache 2.0" }
+keywords = [
+    'Pytorch',
+    'ood',
+    'out of distribution',
+    'out-of-distribution',
+    'classification'
+]
+classifiers = [
+    'Intended Audience :: Developers',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python :: 3'
+]
+dependencies = [
+    'torch'
+]
