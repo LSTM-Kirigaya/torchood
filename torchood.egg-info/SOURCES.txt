@@ -1,0 +1,10 @@
+LICENSE
+README.md
+pyproject.toml
+torchood/__init__.py
+torchood/model.py
+torchood.egg-info/PKG-INFO
+torchood.egg-info/SOURCES.txt
+torchood.egg-info/dependency_links.txt
+torchood.egg-info/requires.txt
+torchood.egg-info/top_level.txt

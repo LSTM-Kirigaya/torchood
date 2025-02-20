@@ -1,3 +1,19 @@
+Metadata-Version: 2.1
+Name: torchood
+Version: 0.0.1
+Summary: implement of local laplace filter algorithm
+Author-email: lstm-kirigaya <1193466151@qq.com>
+License: Apache 2.0
+Project-URL: text, https://github.com/LSTM-Kirigaya
+Keywords: Pytorch,ood,out of distribution,out-of-distribution,classification
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch
+
 
 <center>
 
@@ -64,11 +80,3 @@ prob, uncertainty = classifier.predict(inputs)
 ```
 
 ![](./images/robot.png)
-
----
-
-## Thanks
-
-https://github.com/KaosEngineer/PriorNetworks
-
-https://github.com/liyiheng123/Robust-Classification-with-Convolutional-Prototype-Learning-Pytorch
