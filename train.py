@@ -23,6 +23,7 @@ from evaluation import *
 from datasets import ISIC
 
 from torchood import *
+import models
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -54,7 +55,7 @@ def zero_cosine_rampdown(current, epochs):
     return float(.5 * (1 + np.cos(current * np.pi / epochs)))
 
 
-def test_model(model, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
+def test_model(model: PrototypeNetworks, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
                valid_loader_ood, model_dir, txt_dir):
     # eval_epoch()
     model.eval()
@@ -67,8 +68,8 @@ def test_model(model, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_r
                 data = torch.tensor(data).to(device).float()
                 label = torch.tensor(label).to(device)
 
-                feature, output, prob = model(data)
-                loss = model.criterion(feature, output, label)
+                features, centers, distance, outputs = model(data)
+                loss = model.criterion(features, centers, outputs, label)
                 valid_loss += loss
 
                 features_i.append(feature)
@@ -179,8 +180,10 @@ def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wan
             data = torch.tensor(data).to(device).float()
             label = torch.tensor(label).to(device)
             
-            feature, output, prob = model(data)
-            loss = model.criterion(feature, output, label)
+            features, centers, distance, outputs = model(data)
+            loss = model.criterion(features, centers, outputs, label)
+            _, preds = torch.max(distance, 1)
+            
             train_loss += loss
             
             optimizer.zero_grad()
@@ -300,13 +303,8 @@ def main():
         use_kl_warmup = kl == 'warmup'
         print('use warmup for KL beta', use_kl_warmup)
 
-        model_class = getattr(models, config['model']['name'])
-        model = model_class(
-            in_dim=3, 
-            out_dim=num_class, 
-            focal=focal, 
-            alpha_kl=0 if use_kl_warmup else kl
-        ).to(device)
+        base_model = models.SimpleCNN(in_dim=3, out_dim=num_class).to(device)
+        model = PrototypeNetworks(base_model, num_hidden_units=2, num_classes=num_class, scale=2).to(device)
         
         if os.path.exists(config['train']['checkpoint']):
             state_dict = torch.load(config['train']['checkpoint'])

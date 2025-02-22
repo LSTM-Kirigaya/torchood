@@ -10,8 +10,6 @@ from tqdm import tqdm
 import cv2
 import wandb
 
-from util import TimeCounter
-
 class DimTransform:
     def __init__(self, target_dim, class_split):
         self.target_dim = target_dim
@@ -70,7 +68,7 @@ class Base(Dataset):
     def load_data(self):
         pass
 
-    def __getitem__(self, index: int) -> (np.ndarray, np.ndarray):
+    def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray]:
         data = self.data[index]
         label = self.label[index]
     
@@ -87,7 +85,7 @@ class Base(Dataset):
     def split(self, fold: int, class_split: tuple,
               data_transform: torchvision.transforms = None,
               aug_transform: torchvision.transforms = None,
-              split_label_transform: torchvision.transforms = None) -> (Subset, Subset, Subset):
+              split_label_transform: torchvision.transforms = None) -> tuple[Subset, Subset, Subset]:
         assert len(class_split) == 2, f'Wrong split setting is given! expect 2, given {len(class_split)}.'
 
         if data_transform is None:
@@ -179,6 +177,10 @@ class ISIC(Base):
         else:
             raise RuntimeError('wrong label path is given!')
         print(f'Start loading ISIC from {self.data_dir}')
+
+        # for debug
+        
+
         with tqdm(total=len(os.listdir(self.data_dir)), ncols=100) as _tqdm:
             for step, img in enumerate(os.listdir(self.data_dir)):
                 p_img = os.path.join(self.data_dir, img)
@@ -190,6 +192,10 @@ class ISIC(Base):
                     label = np.array(csv_reader.loc[id])
                     self.data.append(data)
                     self.label.append(label)
+                    
+                    if len(self.data) > 200:
+                        break
+                    
                 _tqdm.update(1)
         self.label = np.array(self.label)
         print('Finish loading data!')
