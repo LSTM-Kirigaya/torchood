@@ -17,10 +17,10 @@ class dce_loss(torch.nn.Module):
         nn.init.kaiming_normal_(self.centers)
 
     def forward(self, x):   
-        features_square=torch.sum(torch.pow(x,2),1, keepdim=True)
-        centers_square=torch.sum(torch.pow(self.centers,2),0, keepdim=True)
-        features_into_centers=2*torch.matmul(x, (self.centers))
-        dist=features_square+centers_square-features_into_centers
+        features_square = torch.sum(torch.pow(x, 2), 1, keepdim=True)
+        centers_square = torch.sum(torch.pow(self.centers, 2), 0, keepdim=True)
+        features_into_centers = 2 * torch.matmul(x, (self.centers))
+        dist = features_square + centers_square - features_into_centers
 
         return self.centers, - dist
 
@@ -35,6 +35,8 @@ class PrototypeNetworks(nn.Module):
     def __init__(
         self,
         model: nn.Module,
+        # output dim of model
+        model_output_dim=1000,
         num_hidden_units=2,
         num_classes=10,
         scale=2
@@ -42,22 +44,22 @@ class PrototypeNetworks(nn.Module):
         super().__init__()
         self.model = model
         self.scale = scale
+        self.num_classes = num_classes
+        
         self.dce = dce_loss(num_classes, num_hidden_units)
+        
+        self.ip = nn.Sequential(
+            nn.PReLU(),
+            nn.Linear(model_output_dim, 2)
+        )
 
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x, _, _ = self.model(x)
-        
-        if not hasattr(self, 'ip'):
-            assert len(x.shape) == 2, 'output of self.model must be a two-dim tensor!, current shape: {}'.format(x.shape)
-            self.ip = nn.Sequential(
-                nn.PReLU(),
-                nn.Linear(x.shape[-1], 2)
-            ).to('cuda')
-        
         features = self.ip(x)
         centers, distance = self.dce(features)
-        outputs = F.log_softmax(self.scale * x, dim=1)
+        outputs = F.log_softmax(self.scale * distance, dim=1)
+        
         return features, centers, distance, outputs
 
     def regularization(self, features, centers, labels):
@@ -67,12 +69,8 @@ class PrototypeNetworks(nn.Module):
         return distance
 
 
-    def criterion(self, features, centers, outputs, labels, reg: float = .001):        
-
-        print()
-        print(outputs.shape)
-        print(labels.shape)
-        loss_1 = F.cross_entropy(outputs, labels)
+    def criterion(self, features, centers, outputs, labels, reg: float = .001):
+        loss_1 = F.nll_loss(outputs, labels)
         loss_2 = self.regularization(features, centers, labels)
         loss = loss_1 + reg * loss_2
         return loss

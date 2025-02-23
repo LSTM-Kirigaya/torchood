@@ -17,7 +17,7 @@ from torch import optim
 from torch.autograd import Variable
 from tqdm import tqdm
 import wandb
-
+from sklearn.metrics import roc_auc_score
 
 from evaluation import *
 from datasets import ISIC
@@ -56,37 +56,42 @@ def zero_cosine_rampdown(current, epochs):
 
 
 def test_model(model: PrototypeNetworks, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
-               valid_loader_ood, model_dir, txt_dir):
+               valid_loader_ood, model_dir):
     # eval_epoch()
     model.eval()
     with torch.no_grad():
         with tqdm(total=len(valid_loader_id), ncols=70) as _tqdm:
             _tqdm.set_description(f'Validating: e{epoch + 1}')
-            features_i, outputs_i, probs_i, labels_i = [], [], [], []
+            probs_i, labels_i = [], []
             valid_loss = 0
             for data, label in valid_loader_id:
                 data = torch.tensor(data).to(device).float()
                 label = torch.tensor(label).to(device)
+                labels_i.append(label)
+                
+                label = label.argmax(dim=1)
 
                 features, centers, distance, outputs = model(data)
+                
+                # min_distance = torch.min(- distance, dim=1)                
+                
                 loss = model.criterion(features, centers, outputs, label)
                 valid_loss += loss
+                
+                pred = distance.softmax(dim=1)
 
-                features_i.append(feature)
-                outputs_i.append(output)
-                probs_i.append(prob)
-                labels_i.append(label)
+                probs_i.append(pred)
                 _tqdm.update(1)
 
+    
     valid_loss /= len(valid_loader_id)
-    wandb_run.log({'valid_loss': valid_loss})
+    if wandb_run:
+        wandb_run.log({'valid_loss': valid_loss})
     # summary_writer.add_scalars('Loss', {'valid_loss': valid_loss}, epoch)
 
-    features_ = torch.cat(features_i, dim=0)
-    outputs_i = torch.cat(outputs_i, dim=0)
     probs_i = torch.cat(probs_i, dim=0)
     labels_i = torch.cat(labels_i, dim=0)
-
+    
     result = valid_id(probs_i, labels_i)
     print('current metric: ', end='')
     for key in result.keys():
@@ -107,22 +112,21 @@ def test_model(model: PrototypeNetworks, epoch, valid_loader_id, wandb_run: wand
     with torch.no_grad():
         with tqdm(total=len(valid_loader_ood), ncols=70) as _tqdm:
             _tqdm.set_description(f'Validating: ood in {epoch + 1}')
-            features_o, outputs_o, probs_o, labels_o = [], [], [], []
+            probs_o, labels_o = [], []
             valid_loss = 0
             for data, label in valid_loader_ood:
-                data = Variable(data).to(device).float()
-                label = Variable(label).to(device)
-                feature, output, prob = model(data)
+                data = torch.tensor(data).to(device).float()
+                label = torch.tensor(label).to(device)
+                label = label.argmax(dim=1)
                 
-                features_o.append(feature)
-                outputs_o.append(output)
-                probs_o.append(prob)
+                features, centers, distance, outputs = model(data)
+                
+                pred = distance.softmax(dim=1)
+
+                probs_o.append(pred)
                 labels_o.append(label)
-                
                 _tqdm.update(1)
                 
-        features_o = torch.cat(features_o, dim=0)
-        outputs_o = torch.cat(outputs_o, dim=0)
         probs_o = torch.cat(probs_o, dim=0)
         labels_o = torch.cat(labels_o, dim=0)
 
@@ -134,30 +138,30 @@ def test_model(model: PrototypeNetworks, epoch, valid_loader_id, wandb_run: wand
     print(classification_report(pre_labels_i_np, probs))
 
     cls_result = classification_report(pre_labels_i_np, probs, output_dict=True)
-    wandb_run.log({'weighted_precision': cls_result['weighted avg']['precision']})
-    wandb_run.log({'weighted_recall': cls_result['weighted avg']['recall']})
-    wandb_run.log({'weighted_f1_score': cls_result['weighted avg']['f1-score']})
     
-    wandb_run.log({'macro_precision': cls_result['macro avg']['precision']})
-    wandb_run.log({'macro_recall': cls_result['macro avg']['recall']})
-    wandb_run.log({'macro_f1_score': cls_result['macro avg']['f1-score']})
+    if wandb_run:
+        wandb_run.log({'weighted_precision': cls_result['weighted avg']['precision']})
+        wandb_run.log({'weighted_recall': cls_result['weighted avg']['recall']})
+        wandb_run.log({'weighted_f1_score': cls_result['weighted avg']['f1-score']})
+        wandb_run.log({'macro_precision': cls_result['macro avg']['precision']})
+        wandb_run.log({'macro_recall': cls_result['macro avg']['recall']})
+        wandb_run.log({'macro_f1_score': cls_result['macro avg']['f1-score']})
     
     print('pent_ood_metric')
     pent_i = probs_i.detach().cpu().numpy()
     pent_o = probs_o.detach().cpu().numpy()
+        
     pent_i = np.sum(np.log(pent_i) * pent_i, axis=1)
     pent_o = np.sum(np.log(pent_o) * pent_o, axis=1)
+    
     result_pent = metric_ood(pent_i, pent_o)['Bas']
+    print('AUROC', result_pent['AUROC'])
     
-    wandb_run.log({'TNR': result_pent['TNR']})
-    wandb_run.log({'AUROC': result_pent['AUROC']})
-    wandb_run.log({'DTACC': result_pent['DTACC']})
-    wandb_run.log({'AUIN': result_pent['AUIN']})
-    wandb_run.log({'AUOUT': result_pent['AUOUT']})
+    assert result_pent['AUROC'] > 0
     
-    # summary_writer.add_histogram('pent_id', pent_i, epoch)
-    # summary_writer.add_histogram('pent_ood', pent_o, epoch)
-    # summary_writer.add_histogram('pent', np.concatenate((pent_o, pent_i)), epoch)
+    if wandb_run:
+        wandb_run.log({'AUROC': result_pent['AUROC']})
+
 
     if result_pent['AUROC'] >= valid_pent['value']:
         valid_pent['value'] = result_pent['AUROC']
@@ -166,23 +170,21 @@ def test_model(model: PrototypeNetworks, epoch, valid_loader_id, wandb_run: wand
         print(f'best ent model saved in epoch {epoch}!')
 
 
-def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs, use_kl_warmup: bool = False):
+def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs):
     # train_epoch()
     model.train()
-    
-    if use_kl_warmup:
-        model.alpha_kl = min(1, epoch / 10)
-    
+
     with tqdm(total=len(train_loader), ncols=80, colour='green') as _tqdm:
         _tqdm.set_description(f'Training: e{epoch + 1}')
         train_loss = 0
         for data, label in train_loader:
             data = torch.tensor(data).to(device).float()
             label = torch.tensor(label).to(device)
+            label = label.argmax(dim=1)
             
             features, centers, distance, outputs = model(data)
             loss = model.criterion(features, centers, outputs, label)
-            _, preds = torch.max(distance, 1)
+            # _, preds = torch.max(distance, 1)
             
             train_loss += loss
             
@@ -194,11 +196,13 @@ def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wan
             _tqdm.update(1)
             
         train_loss /= len(train_loader)
-        wandb_run.log({'train_loss': train_loss})
+        
+        if wandb_run:
+            wandb_run.log({'train_loss': train_loss})
         # summary_writer.add_scalars('Loss', {'train_loss': train_loss}, epoch)
 
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = 1e-4 * zero_cosine_rampdown(epoch, max_epochs)
+    # for param_group in optimizer.param_groups:
+    #     param_group['lr'] = 1e-4 * zero_cosine_rampdown(epoch, max_epochs)
 
 
 def main():
@@ -267,7 +271,7 @@ def main():
     else:
         run = None
         
-    isic = ISIC(img_dir=p_train_img, label_dir=p_train_label, cache_dir=data_dir)
+    isic = ISIC(img_dir=p_train_img, label_dir=p_train_label, cache_dir=data_dir, args=args)
     
     for fold in range(5):
         log_dir = os.path.join(logs_dir, f'fold_{fold}')
@@ -299,12 +303,16 @@ def main():
             num_workers=16
         )
 
-        # MENN is ERNN
-        use_kl_warmup = kl == 'warmup'
-        print('use warmup for KL beta', use_kl_warmup)
-
+        print('num_class: {}'.format(num_class))
+        
         base_model = models.SimpleCNN(in_dim=3, out_dim=num_class).to(device)
-        model = PrototypeNetworks(base_model, num_hidden_units=2, num_classes=num_class, scale=2).to(device)
+        model = PrototypeNetworks(
+            base_model,
+            model_output_dim=1000,
+            num_hidden_units=2,
+            num_classes=num_class,
+            scale=2
+        ).to(device)
         
         if os.path.exists(config['train']['checkpoint']):
             state_dict = torch.load(config['train']['checkpoint'])
@@ -323,20 +331,17 @@ def main():
                     'epoch': 0}
 
         for epoch in range(max_epochs + 1):
-            if not args.debug:
-                test_model(model, epoch, valid_loader_id, run, valid_id_best, 
-                            valid_pent, valid_loader_ood, model_dir, txt_dir)
-                
-            if epoch == max_epochs:
-                continue
+            test_model(model, epoch, valid_loader_id, run, valid_id_best, 
+                        valid_pent, valid_loader_ood, model_dir)
             
-            train_model(model, epoch, train_loader, optimizer, run, max_epochs, use_kl_warmup=use_kl_warmup)
+            train_model(model, epoch, train_loader, optimizer, run, max_epochs)
 
-        wandb.alert(
-            title='Finish Training',
-            text=f'finish training of "{args.name}"',
-            level=wandb.AlertLevel.INFO
-        )
+        if not args.debug:
+            wandb.alert(
+                title='Finish Training',
+                text=f'finish training of "{args.name}"',
+                level=wandb.AlertLevel.INFO
+            )
         
 if __name__ == '__main__':
     device = 'cuda'

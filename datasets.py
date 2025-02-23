@@ -128,7 +128,9 @@ class Base(Dataset):
 
 
 class ISIC(Base):
-    def __init__(self, img_dir, label_dir, cache_dir, transform=None, aug_transform=None, label_transform=None):
+    def __init__(self, img_dir, label_dir, cache_dir, transform=None, aug_transform=None, label_transform=None, args=None):
+        self.args = args
+        
         super(ISIC, self).__init__(img_dir, label_dir, cache_dir, transform, aug_transform, label_transform)
         # if transform is None:
         #     self.transform = transforms.Compose([
@@ -142,7 +144,7 @@ class ISIC(Base):
         #         transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip(),
         #         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         #     ])
-        
+                
         if transform is None:
             self.transform = transforms.Compose([
                 transforms.ToTensor(),
@@ -179,7 +181,7 @@ class ISIC(Base):
         print(f'Start loading ISIC from {self.data_dir}')
 
         # for debug
-        
+        debug_mode = self.args.debug
 
         with tqdm(total=len(os.listdir(self.data_dir)), ncols=100) as _tqdm:
             for step, img in enumerate(os.listdir(self.data_dir)):
@@ -193,7 +195,7 @@ class ISIC(Base):
                     self.data.append(data)
                     self.label.append(label)
                     
-                    if len(self.data) > 200:
+                    if debug_mode and len(self.data) > 200:
                         break
                     
                 _tqdm.update(1)
