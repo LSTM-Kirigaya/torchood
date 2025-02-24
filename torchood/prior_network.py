@@ -8,7 +8,7 @@ from torch.distributions.kl import kl_divergence
 
 
 class PriorNetwork(nn.Module):
-    r"""Predictive Uncertainty Estimation via Prior Networks(Prior Networks)
+    r"""Prior Networks (PriorNet)
     Pytorch implementation for [NeurIPS 2018: Predictive Uncertainty Estimation via Prior Networks](https://papers.nips.cc/paper_files/paper/2018/hash/3ea2db50e62ceefceaf70a9d9a56a6f4-Abstract.html)
     
     Reference Repo: https://github.com/gtegner/PriorNetworks

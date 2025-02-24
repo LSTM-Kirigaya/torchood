@@ -27,7 +27,7 @@ class dce_loss(torch.nn.Module):
 
 
 class PrototypeNetwork(nn.Module):
-    r"""Robust Classification with Convolutional Prototype Learning (Prototype Networks)
+    r"""Prototype Networks (PrototypeNet)
     Pytorch implementation for [CVPR 2018: Rbust classification with convolutional prototype learning](https://arxiv.org/pdf/1805.03438)
     
     Reference Repo: https://github.com/liyiheng123/Robust-Classification-with-Convolutional-Prototype-Learning-Pytorch

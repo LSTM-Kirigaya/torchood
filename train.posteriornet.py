@@ -55,7 +55,7 @@ def zero_cosine_rampdown(current, epochs):
     return float(.5 * (1 + np.cos(current * np.pi / epochs)))
 
 
-def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
+def test_model(model: PosteriorNetwork, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
                valid_loader_ood, model_dir):
     # eval_epoch()
     model.eval()
@@ -71,11 +71,10 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
                 
                 label = label.argmax(dim=1)
 
-                features, centers, distance, outputs = model(data)
+                feature, logits, probs = model(data)
                 
                 # min_distance = torch.min(- distance, dim=1)                
-                
-                loss = model.criterion(features, centers, outputs, label)
+                loss = model.criterion(logits, label)
                 valid_loss += loss.sum()
                 
                 pred = distance.softmax(dim=1)
@@ -119,10 +118,9 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
                 label = torch.tensor(label).to('cuda')
                 label = label.argmax(dim=1)
                 
-                features, centers, distance, outputs = model(data)
-                pred = distance.softmax(dim=1)
+                _, logits, probs = model(data)
 
-                probs_o.append(pred)
+                probs_o.append(probs)
                 labels_o.append(label)
                 _tqdm.update(1)
                 
@@ -169,7 +167,7 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
         print(f'best ent model saved in epoch {epoch}!')
 
 
-def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs):
+def train_model(model: PosteriorNetwork, epoch, train_loader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs):
     # train_epoch()
     model.train()
 
@@ -181,8 +179,8 @@ def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wan
             label = torch.tensor(label).to('cuda')
             label = label.argmax(dim=1)
             
-            features, centers, distance, outputs = model(data)
-            loss = model.criterion(features, centers, outputs, label)
+            _, logits, _ = model(data)
+            loss = model.criterion(logits, label)
             # _, preds = torch.max(distance, 1)
             
             train_loss += loss
@@ -208,8 +206,8 @@ def main():
     manual_seed = 0
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='./config/train.yml', help='path to config')
-    parser.add_argument('--name', type=str, required=True, help='experiment name', default='protonet')
-    parser.add_argument('--note', type=str, default='runs based on protonet', help='experiment name')
+    parser.add_argument('--name', type=str, required=True, help='experiment name', default='posteriornet')
+    parser.add_argument('--note', type=str, default='runs based on posteriornet', help='experiment name')
     parser.add_argument('--debug', action='store_true', help='path to config')
 
     args = parser.parse_args()
