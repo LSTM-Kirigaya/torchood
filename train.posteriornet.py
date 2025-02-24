@@ -302,12 +302,8 @@ def main():
         print('num_class: {}'.format(num_class))
         
         base_model = models.SimpleCNN(in_dim=3, out_dim=num_class).to('cuda')
-        model = PrototypeNetwork(
-            base_model,
-            output_dim=1000,
-            num_hidden_units=2,
-            num_classes=num_class,
-            scale=2
+        model = PosteriorNetwork(
+            base_model
         ).to('cuda')
         
         if os.path.exists(config['train']['checkpoint']):
