@@ -1,4 +1,5 @@
-from .prototype_networks import PrototypeNetworks
+from .prototype_network import PrototypeNetwork
+from .prior_network import PriorNetwork
 from .model import EvidenceNeuralNetwork
 from .model import EvidenceReconciledNeuralNetwork
 from .model import RedundancyRemovingEvidentialNeuralNetwork
@@ -6,7 +7,8 @@ from .model import RedundancyRemovingEvidentialNeuralNetwork
 from .base import SimpleCNN
 
 __all__ = [
-    'PrototypeNetworks',
+    'PrototypeNetwork',
+    'PriorNetwork',
     'EvidenceNeuralNetwork',
     'EvidenceReconciledNeuralNetwork',
     'RedundancyRemovingEvidentialNeuralNetwork',
