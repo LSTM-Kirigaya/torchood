@@ -207,9 +207,9 @@ class ISIC(Base):
             return
         
         if not os.path.exists(self.data_dir):
-            raise RuntimeError('data path does not exist!')
+            raise RuntimeError('data path does not exist! ' + self.data_dir)
         if not os.path.exists(self.label_dir):
-            raise RuntimeError('label path does not exist!')
+            raise RuntimeError('label path does not exist! ' + self.label_dir)
 
         if os.path.isfile(self.label_dir):  # 读取csv标签
             csv_reader = pd.read_csv(self.label_dir, header=0, index_col='image')
@@ -244,11 +244,12 @@ class ISIC(Base):
         print(Counter(self.label))
         
         self.label = np.array(self.label)
+        
         print('Finish loading data!')
 
 
 import yaml
-config = yaml.load(open('./config/isic2019.yaml', 'r', encoding='utf-8'), Loader=yaml.Loader)
+config = yaml.load(open('./config/isic2018.yaml', 'r', encoding='utf-8'), Loader=yaml.Loader)
 p_train_img = config['data']['train_image_dir']
 p_train_label = config['data']['train_image_label']
 data_dir = config['data']['cache_dir']

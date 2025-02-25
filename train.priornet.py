@@ -67,10 +67,7 @@ def test_model(model: PriorNetwork, epoch, valid_loader_id, wandb_run: wandb.wan
             for data, label in valid_loader_id:
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
-                labels_i.append(label)
                 
-                label = label.argmax(dim=1)
-
                 mean, alpha, precision = model(data)
                 
                 # min_distance = torch.min(- distance, dim=1)                
@@ -78,6 +75,7 @@ def test_model(model: PriorNetwork, epoch, valid_loader_id, wandb_run: wandb.wan
                 loss = model.id_loss(alpha, precision, label)
                 valid_loss += loss.sum()
                 
+                labels_i.append(label)
                 probs_i.append(mean)
                 _tqdm.update(1)
 
@@ -115,7 +113,6 @@ def test_model(model: PriorNetwork, epoch, valid_loader_id, wandb_run: wandb.wan
             for data, label in valid_loader_ood:
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
-                label = label.argmax(dim=1)
                 
                 mean, alpha, precision = model(data)
                 probs_o.append(mean)
@@ -185,7 +182,6 @@ def train_model(model: PriorNetwork, epoch, train_loader, optimizer, wandb_run: 
         train_loss = 0
         for data, label in train_loader:
             label = torch.tensor(label).to('cuda')
-            label = label.argmax(dim=1)
             
             # prior net need ood during training, use 
             x_id: torch.Tensor = data

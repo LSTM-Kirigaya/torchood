@@ -67,9 +67,7 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
             for data, label in valid_loader_id:
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
-                labels_i.append(label)
                 
-                label = label.argmax(dim=1)
 
                 feature, logits, probs = model(data)
                 
@@ -77,6 +75,7 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
                 loss = model.criterion(logits, label)
                 valid_loss += loss.sum()
                 
+                labels_i.append(label)
                 probs_i.append(probs)
                 _tqdm.update(1)
 
@@ -114,7 +113,6 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
             for data, label in valid_loader_ood:
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
-                label = label.argmax(dim=1)
                 
                 _, logits, probs = model(data)
 
@@ -175,7 +173,6 @@ def train_model(model: HODDetector, epoch, train_loader: DataLoader, optimizer, 
         for data, label in train_loader:
             data = torch.tensor(data).to('cuda').float()
             label = torch.tensor(label).to('cuda')
-            label = label.argmax(dim=1)
             
             _, logits, _ = model(data)
             loss = model.criterion(logits, label)

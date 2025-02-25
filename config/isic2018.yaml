@@ -1,0 +1,19 @@
+data:
+  train_image_dir: /data/zhelonghuang/datasets/ISIC-2018/ISIC2018_Task3_Training_Input
+  train_image_label: /data/zhelonghuang/datasets/ISIC-2018/ISIC2018_Task3_Training_GroundTruth/ISIC2018_Task3_Training_GroundTruth.csv
+  cache_dir: ./data
+  name: isic2018
+
+model:
+  ID_labels: [0, 1, 2, 3, 4, 7]
+  OOD_labels: [5, 6]
+  focal: 0
+  kl: 0
+
+train:
+  checkpoint: ''
+  batch_size: 256
+  lr: 1e-4
+  wd: 1e-4
+  max_epochs: 100
+  save_dir: './runs'

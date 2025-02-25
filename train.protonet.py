@@ -69,8 +69,6 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
                 label = torch.tensor(label).to('cuda')
                 labels_i.append(label)
                 
-                label = label.argmax(dim=1)
-
                 features, centers, distance, outputs = model(data)
                 
                 # min_distance = torch.min(- distance, dim=1)                
@@ -117,7 +115,6 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
             for data, label in valid_loader_ood:
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
-                label = label.argmax(dim=1)
                 
                 features, centers, distance, outputs = model(data)
                 pred = distance.softmax(dim=1)
@@ -179,7 +176,6 @@ def train_model(model: nn.Module, epoch, train_loader, optimizer, wandb_run: wan
         for data, label in train_loader:
             data = torch.tensor(data).to('cuda').float()
             label = torch.tensor(label).to('cuda')
-            label = label.argmax(dim=1)
             
             features, centers, distance, outputs = model(data)
             loss = model.criterion(features, centers, outputs, label)
