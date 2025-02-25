@@ -256,7 +256,9 @@ class ISIC(Base):
 
         with tqdm(total=len(image_paths), ncols=100, colour='green') as _tqdm:
             for step, (p_img, label) in enumerate(image_paths):
-                data = io.imread(p_img)
+                data = cv2.imread(p_img, 'L')
+                print(data.shape)
+                raise False
                 data = cv2.resize(data, (224, 224))
                 
                 self.data.append(data)
