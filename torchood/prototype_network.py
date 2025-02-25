@@ -69,7 +69,7 @@ class PrototypeNetwork(nn.Module):
         return distance
 
 
-    def criterion(self, features, centers, outputs, labels, reg: float = .001):
+    def criterion(self, features, centers, outputs, labels, reg: float = .001):            
         loss_1 = F.nll_loss(outputs, labels)
         loss_2 = self.regularization(features, centers, labels)
         loss = loss_1 + reg * loss_2

@@ -14,13 +14,12 @@ import numpy as np
 
 from torch import optim
 # from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
+import importlib
 from tqdm import tqdm
 import wandb
 from sklearn.metrics import roc_auc_score
 
 from evaluation import *
-from isic2019 import ISIC
 
 from torchood import *
 import models
@@ -34,8 +33,9 @@ def check_dir(test_dir):
 
 
 def valid_id(outputs_, labels_):
-    pred = torch.argmax(outputs_, dim=1).detach().cpu().numpy()
-    target = torch.argmax(labels_, dim=1).detach().cpu().numpy()
+    pred = torch.argmax(outputs_, dim=1).detach().cpu().numpy()    
+    target = labels_.detach().cpu().numpy()
+    
     result = {'pre': precision_score(target, pred, average='weighted'),
               'rec': recall_score(target, pred, average='weighted'),
               'f1s': f1_score(target, pred, average='weighted')}
@@ -129,11 +129,10 @@ def test_model(model: PrototypeNetwork, epoch, valid_loader_id, wandb_run: wandb
     labels_i_np = labels_i.detach().cpu().numpy()
     probs_i_np = probs_i.detach().cpu().numpy()
     print(f'valid in epoch {epoch}:')
-    pre_labels_i_np = np.argmax(labels_i_np, axis=1)
     probs = np.argmax(probs_i_np, axis=1)
-    print(classification_report(pre_labels_i_np, probs))
+    print(classification_report(labels_i_np, probs))
 
-    cls_result = classification_report(pre_labels_i_np, probs, output_dict=True)
+    cls_result = classification_report(labels_i_np, probs, output_dict=True)
     
     if wandb_run:
         wandb_run.log({'weighted_precision': cls_result['weighted avg']['precision']})
@@ -213,6 +212,8 @@ def main():
     
     p_train_img = config['data']['train_image_dir']
     p_train_label = config['data']['train_image_label']
+    data_name = config['data']['name']
+    
     ID_labels = config['model']['ID_labels']
     OOD_labels = config['model']['OOD_labels']
     class_split = (ID_labels, OOD_labels)
@@ -265,8 +266,16 @@ def main():
         run.define_metric('AUOUT', summary='max')
     else:
         run = None
-        
-    isic = ISIC(img_dir=p_train_img, label_dir=p_train_label, cache_dir=data_dir, args=args)
+    
+    # like from isic2018 import ISIC
+    DatasetClass = importlib.import_module(data_name).ISIC
+    
+    common_dataset = DatasetClass(
+        img_dir=p_train_img,
+        label_dir=p_train_label,
+        cache_dir=data_dir,
+        args=args
+    )
     
     for fold in range(5):
         log_dir = os.path.join(logs_dir, f'fold_{fold}')
@@ -277,8 +286,8 @@ def main():
 
         # experiment initialization
         torch.manual_seed(manual_seed)
-        train_set, valid_set_id, valid_set_ood = isic.split(fold, class_split=class_split)
-        
+        train_set, valid_set_id, valid_set_ood = common_dataset.split(fold, class_split=class_split)
+                
         train_loader = DataLoader(
             train_set, 
             batch_size=batch_size,
@@ -291,6 +300,7 @@ def main():
             batch_size=batch_size,
             num_workers=16
         )
+        
         valid_loader_ood = DataLoader(
             valid_set_ood, 
             batch_size=batch_size,

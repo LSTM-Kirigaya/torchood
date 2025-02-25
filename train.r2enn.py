@@ -18,9 +18,9 @@ from torch.autograd import Variable
 from tqdm import tqdm
 import wandb
 from sklearn.metrics import roc_auc_score
+import importlib
 
 from evaluation import *
-import importlib
 
 from torchood import *
 import models
@@ -55,7 +55,7 @@ def zero_cosine_rampdown(current, epochs):
     return float(.5 * (1 + np.cos(current * np.pi / epochs)))
 
 
-def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
+def test_model(model: RedundancyRemovingEvidentialNeuralNetwork, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
                valid_loader_ood, model_dir):
     # eval_epoch()
     model.eval()
@@ -68,15 +68,14 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
                 data = torch.tensor(data).to('cuda').float()
                 label = torch.tensor(label).to('cuda')
                 
-
-                feature, logits, probs = model(data)
-                
-                # min_distance = torch.min(- distance, dim=1)                
-                loss = model.criterion(logits, label)
+                feature, evidence, prob = model(data)
+                loss = model.criterion(evidence, label)
+  
+                # min_distance = torch.min(- distance, dim=1)
                 valid_loss += loss.sum()
-                
-                labels_i.append(label)
-                probs_i.append(probs)
+
+                labels_i.append(label.detach_().cpu())           
+                probs_i.append(prob.detach_().cpu())
                 _tqdm.update(1)
 
     
@@ -111,13 +110,14 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
             probs_o, labels_o = [], []
             valid_loss = 0
             for data, label in valid_loader_ood:
-                data = torch.tensor(data).to('cuda').float()
-                label = torch.tensor(label).to('cuda')
+                data = torch.tensor(data).cuda()
+                label = torch.tensor(label).cuda()
                 
-                _, logits, probs = model(data)
+                feature, evidence, prob = model(data)
+                # loss = model.criterion(evidence, label)
 
-                probs_o.append(probs)
-                labels_o.append(label)
+                probs_o.append(prob.detach_().cpu())
+                labels_o.append(label.detach_().cpu())
                 _tqdm.update(1)
                 
         probs_o = torch.cat(probs_o, dim=0)
@@ -162,9 +162,10 @@ def test_model(model: HODDetector, epoch, valid_loader_id, wandb_run: wandb.wand
         print(f'best ent model saved in epoch {epoch}!')
 
 
-def train_model(model: HODDetector, epoch, train_loader: DataLoader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs):
+def train_model(model: RedundancyRemovingEvidentialNeuralNetwork, epoch, train_loader, optimizer, wandb_run: wandb.wandb_sdk.wandb_run.Run, max_epochs):
     # train_epoch()
     model.train()
+    model.alpha_kl = min(1, epoch / 10)
 
     with tqdm(total=len(train_loader), ncols=80, colour='green') as _tqdm:
         _tqdm.set_description(f'Training: e{epoch + 1}')
@@ -173,8 +174,8 @@ def train_model(model: HODDetector, epoch, train_loader: DataLoader, optimizer, 
             data = torch.tensor(data).to('cuda').float()
             label = torch.tensor(label).to('cuda')
             
-            _, logits, _ = model(data)
-            loss = model.criterion(logits, label)
+            feature, evidence, prob = model(data)
+            loss = model.criterion(evidence, label)
             # _, preds = torch.max(distance, 1)
             
             train_loss += loss
@@ -200,8 +201,8 @@ def main():
     manual_seed = 0
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='./config/train.yml', help='path to config')
-    parser.add_argument('--name', type=str, required=True, help='experiment name', default='hod detector')
-    parser.add_argument('--note', type=str, default='runs based on hod detector', help='experiment name')
+    parser.add_argument('--name', type=str, required=True, help='experiment name', default='r2enn')
+    parser.add_argument('--note', type=str, default='runs based on r2enn', help='experiment name')
     parser.add_argument('--debug', action='store_true', help='path to config')
 
     args = parser.parse_args()
@@ -213,13 +214,14 @@ def main():
     OOD_labels = config['model']['OOD_labels']
     class_split = (ID_labels, OOD_labels)
     num_class = len(class_split[0])
-            
+    data_name = config['data']['name']
+    
+        
     batch_size = config['train']['batch_size']
     lr = float(config['train']['lr'])
     wd = float(config['train']['wd'])
     max_epochs = config['train']['max_epochs']
     save_dir = config['train']['save_dir']
-    data_name = config['data']['name']
     
     logs_dir = time.strftime('%Y-%m-%d_%H_%M', time.localtime())
     logs_dir = os.path.join(save_dir, logs_dir)
@@ -259,7 +261,7 @@ def main():
         run.define_metric('AUOUT', summary='max')
     else:
         run = None
-    
+        
     # like from isic2018 import ISIC
     DatasetClass = importlib.import_module(data_name).ISIC
     
@@ -279,11 +281,7 @@ def main():
 
         # experiment initialization
         torch.manual_seed(manual_seed)
-        train_set, valid_set_id, valid_set_ood = common_dataset.split(fold, class_split=class_split, use_ood_during_training=True)
-        
-        print('train set num: {}'.format(len(train_set)))
-        print('valid set num: {}'.format(len(valid_set_id)))
-        print('valid ood set num: {}'.format(len(valid_set_ood)))
+        train_set, valid_set_id, valid_set_ood = common_dataset.split(fold, class_split=class_split)
         
         train_loader = DataLoader(
             train_set, 
@@ -305,17 +303,11 @@ def main():
 
         print('num_class: {}'.format(num_class))
         
-        id_label_num = len(ID_labels)
-        ood_label_num = len(OOD_labels)
-                
-        print('id class num: {}'.format(id_label_num))
-        print('ood class num: {}'.format(ood_label_num))
-        
-        base_model = models.SimpleCNN(in_dim=3, out_dim=id_label_num + ood_label_num).to('cuda')
-        model = HODDetector(
+        base_model = models.SimpleCNN(in_dim=3, out_dim=num_class).to('cuda')
+        model = RedundancyRemovingEvidentialNeuralNetwork(
             base_model,
-            num_inlier_classes=id_label_num,
-            num_outlier_classes=ood_label_num
+            num_class=num_class,
+            alpha_kl=0
         ).to('cuda')
         
         if os.path.exists(config['train']['checkpoint']):

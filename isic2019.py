@@ -38,8 +38,6 @@ class Subset(Dataset):
     
         if self.transform is not None:
             data = self.transform(data)
-        if self.label_transform is not None:
-            label = self.label_transform(label)
         return data, label
 
     def __len__(self):
@@ -59,7 +57,6 @@ class Base(Dataset):
         self.label = []
         self.load_data()
 
-        self.idx_by_class = []
         self.train_idx = []
         self.valid_idx_id = []
         self.valid_idx_ood = []
@@ -100,16 +97,9 @@ class Base(Dataset):
             data_transform = self.transform
         if aug_transform is None:
             aug_transform = self.aug_transform
-        if split_label_transform is None:
-            split_label_transform = DimTransform(len(class_split[0]), class_split=class_split)
-
-        # split data according to categories
-        for i in range(self.label.shape[-1]):
-            idx = np.where(np.argmax(self.label, axis=1) == i)[0]
-            self.idx_by_class.append(idx)
 
         for class_id in class_split[1]:
-            self.valid_idx_ood += self.idx_by_class[class_id].tolist()
+            self.valid_idx_ood.append(self.label[class_id])
 
         idx_id = np.setdiff1d(np.arange(len(self.data)), self.valid_idx_ood)
         self.valid_idx_id = idx_id[np.linspace(fold, len(idx_id), len(idx_id) // 5, endpoint=False, dtype=np.int)]

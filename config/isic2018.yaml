@@ -5,7 +5,7 @@ data:
   name: isic2018
 
 model:
-  ID_labels: [0, 1, 2, 3, 4, 7]
+  ID_labels: [0, 1, 2, 3, 4]
   OOD_labels: [5, 6]
   focal: 0
   kl: 0

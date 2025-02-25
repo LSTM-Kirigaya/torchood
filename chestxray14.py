@@ -9,6 +9,25 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 
+
+label_to_id = {
+    "Atelectasis": 0,
+    "Cardiomegaly": 1,
+    "Effusion": 2,
+    "Infiltration": 3,
+    "Mass": 4,
+    "Nodule": 5,
+    "Pneumonia": 6,
+    "Pneumothorax": 7,
+    "Consolidation": 8,
+    "Edema": 9,
+    "Emphysema": 10,
+    "Fibrosis": 11,
+    "Pleural_Thickening": 12,
+    "Hernia": 13,
+    "No Finding": -1  # 如果没有发现疾病，标记为 -1
+}
+
 class DimTransform:
     def __init__(self, target_dim, class_split):
         self.target_dim = target_dim
@@ -210,32 +229,38 @@ class ISIC(Base):
         if not os.path.exists(self.label_dir):
             raise RuntimeError('label path does not exist! ' + self.label_dir)
 
-        if os.path.isfile(self.label_dir):  # 读取csv标签
-            csv_reader = pd.read_csv(self.label_dir, header=0, index_col='image')
-        else:
-            raise RuntimeError('wrong label path is given!')
-        print(f'Start loading ISIC from {self.data_dir}')
+        
+        # 读取 csv 并建立索引
+        label_csv = pd.read_csv(self.label_dir, header=0, index_col='Image Index')
+        def get_label_ids(image_name):
+            if image_name in label_csv.index:
+                labels = label_csv.loc[image_name, 'Finding Labels']
+                label_list = labels.split('|')
+                # 将标签名称转换为 ID
+                label_ids = [label_to_id[label] for label in label_list if label in label_to_id]
+                return label_ids[0]
+            else:
+                return None
 
-        # for debug
-        if self.args is None:
-            debug_mode = False
-        else:
-            debug_mode =  self.args.debug
+        image_paths = []
+        # data_dir is something like /data/zhelonghuang/datasets/chestxray-14/images
+        for image in tqdm(os.listdir(self.data_dir), ncols=100, colour='green'):
+            if image.endswith('.png'):
+                label = get_label_ids(image)
+                if label:
+                    image_paths.append(
+                        (os.path.join(self.data_dir, image), int(label))
+                    )
 
-        with tqdm(total=len(os.listdir(self.data_dir)), ncols=100) as _tqdm:
-            for step, img in enumerate(os.listdir(self.data_dir)):
-                p_img = os.path.join(self.data_dir, img)
-                if p_img.endswith('jpg'):
-                    data = io.imread(p_img)
-                    data = cv2.resize(data, (224, 224))
-                    
-                    id = img.split('.')[0]
-                    label = np.array(csv_reader.loc[id])
-                    self.data.append(data)
-                    self.label.append(label.argmax(axis=0))
-                    
-                    # if debug_mode and len(self.data) > 200:
-                    #     break
+        print("get image pairs num: {}".format(len(image_paths)))
+
+        with tqdm(total=len(image_paths), ncols=100, colour='green') as _tqdm:
+            for step, (p_img, label) in enumerate(image_paths):
+                data = io.imread(p_img)
+                data = cv2.resize(data, (224, 224))
+                
+                self.data.append(data)
+                self.label.append(label)
                     
                 _tqdm.update(1)
         
@@ -243,12 +268,11 @@ class ISIC(Base):
         print(Counter(self.label))
         
         self.label = np.array(self.label)
-        
         print('Finish loading data!')
 
 
 import yaml
-config = yaml.load(open('./config/isic2018.yaml', 'r', encoding='utf-8'), Loader=yaml.Loader)
+config = yaml.load(open('./config/chestxray14.yaml', 'r', encoding='utf-8'), Loader=yaml.Loader)
 p_train_img = config['data']['train_image_dir']
 p_train_label = config['data']['train_image_label']
 data_dir = config['data']['cache_dir']

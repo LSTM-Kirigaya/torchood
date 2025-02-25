@@ -3,9 +3,9 @@ from .prior_network import PriorNetwork
 from .posterior_network import PosteriorNetwork
 from .hod_detector import HODDetector
 
-from .model import EvidenceNeuralNetwork
-from .model import EvidenceReconciledNeuralNetwork
-from .model import RedundancyRemovingEvidentialNeuralNetwork
+from .evidential_network import EvidenceNeuralNetwork
+from .evidential_network import EvidenceReconciledNeuralNetwork
+from .evidential_network import RedundancyRemovingEvidentialNeuralNetwork
 
 from .base import SimpleCNN
 
