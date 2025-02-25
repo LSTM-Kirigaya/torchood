@@ -20,7 +20,7 @@ import wandb
 from sklearn.metrics import roc_auc_score
 
 from evaluation import *
-from datasets import ISIC
+from isic2019 import ISIC
 
 from torchood import *
 import models

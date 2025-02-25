@@ -8,7 +8,6 @@ import torchvision.transforms as transforms
 import numpy as np
 from tqdm import tqdm
 import cv2
-import wandb
 
 class DimTransform:
     def __init__(self, target_dim, class_split):
@@ -82,10 +81,19 @@ class Base(Dataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    def split(self, fold: int, class_split: tuple,
+    def split(self, fold: int,
+              class_split: tuple,
+              use_ood_during_training: bool = False,
               data_transform: torchvision.transforms = None,
               aug_transform: torchvision.transforms = None,
               split_label_transform: torchvision.transforms = None) -> tuple[Subset, Subset, Subset]:
+        r"""Split ISIC 2019 dataset
+        
+        Args:
+            fold(int): fold
+            use_ood_during_training(bool): if true, a little ood data is mixed into output train_set
+        
+        """
         assert len(class_split) == 2, f'Wrong split setting is given! expect 2, given {len(class_split)}.'
 
         if data_transform is None:
@@ -104,27 +112,56 @@ class Base(Dataset):
             self.valid_idx_ood += self.idx_by_class[class_id].tolist()
 
         idx_id = np.setdiff1d(np.arange(len(self.data)), self.valid_idx_ood)
-        # valid_idx = np.linspace(fold, len(idx_id), len(idx_id) // 5, endpoint=False, dtype=np.int)
         self.valid_idx_id = idx_id[np.linspace(fold, len(idx_id), len(idx_id) // 5, endpoint=False, dtype=np.int)]
         self.train_idx = np.setdiff1d(idx_id, self.valid_idx_id)
-        # self.train_idx = self.train_idx[np.linspace(0, len(self.train_idx), len(self.train_idx) // 5, endpoint=False, dtype=np.int)]
 
-        train_set = Subset([self.data[idx] for idx in self.train_idx], [self.label[idx] for idx in self.train_idx],
-                           data_split=class_split,
-                           transform=aug_transform,
-                           label_transform=split_label_transform)
-        valid_set_id = Subset([self.data[idx] for idx in self.valid_idx_id],
-                              [self.label[idx] for idx in self.valid_idx_id],
-                              data_split=class_split,
-                              transform=data_transform,
-                              label_transform=split_label_transform)
-        valid_set_ood = Subset([self.data[idx] for idx in self.valid_idx_ood],
-                               [self.label[idx] for idx in self.valid_idx_ood],
-                               data_split=class_split,
-                               transform=data_transform,
-                               label_transform=split_label_transform)
+        # 训练集
+        train_set = Subset(
+            [self.data[idx] for idx in self.train_idx],
+            [self.label[idx] for idx in self.train_idx],
+            data_split=class_split,
+            transform=aug_transform,
+            label_transform=split_label_transform
+        )
+        
+        # 测试集
+        valid_set_id = Subset(
+            [self.data[idx] for idx in self.valid_idx_id],
+            [self.label[idx] for idx in self.valid_idx_id],
+            data_split=class_split,
+            transform=data_transform,
+            label_transform=split_label_transform
+        )
+        
+        # OOD 数据
+        if use_ood_during_training:
+            
+            # 分配 20% 的数据作为 training ood
+            ood_sample_num = len(self.valid_idx_ood)
+            valid_ood_sample = int(ood_sample_num * 0.2)
+            np.random.shuffle(self.valid_idx_ood)
+            
+            valid_set_ood = Subset(
+                [self.data[idx] for idx in self.valid_idx_ood[:valid_ood_sample]],
+                [self.label[idx] for idx in self.valid_idx_ood[:valid_ood_sample]],
+                data_split=class_split,
+                transform=data_transform,
+                label_transform=split_label_transform
+            )
+            
+            # 将 ood 数据混入 train set            
+            train_set.data.extend([self.data[idx] for idx in self.valid_idx_ood[valid_ood_sample:]])
+            train_set.label.extend([self.label[idx] for idx in self.valid_idx_ood[valid_ood_sample:]])
+            
+            return train_set, valid_set_id, valid_set_ood
+        else: 
+            valid_set_ood = Subset([self.data[idx] for idx in self.valid_idx_ood],
+                                [self.label[idx] for idx in self.valid_idx_ood],
+                                data_split=class_split,
+                                transform=data_transform,
+                                label_transform=split_label_transform)
 
-        return train_set, valid_set_id, valid_set_ood
+            return train_set, valid_set_id, valid_set_ood
 
 
 class ISIC(Base):
@@ -160,8 +197,8 @@ class ISIC(Base):
             ])
             
     def load_data(self):
-        data_npy = os.path.join(self.cache_dir, 'data.npy')
-        label_npy = os.path.join(self.cache_dir, 'label.npy')
+        data_npy = os.path.join(self.cache_dir, prebuild_data_file)
+        label_npy = os.path.join(self.cache_dir, prebuild_label_file)
         
         if os.path.exists(data_npy) and os.path.exists(label_npy):
             self.data = np.load(data_npy)
@@ -181,7 +218,10 @@ class ISIC(Base):
         print(f'Start loading ISIC from {self.data_dir}')
 
         # for debug
-        debug_mode = self.args.debug
+        if self.args is None:
+            debug_mode = False
+        else:
+            debug_mode =  self.args.debug
 
         with tqdm(total=len(os.listdir(self.data_dir)), ncols=100) as _tqdm:
             for step, img in enumerate(os.listdir(self.data_dir)):
@@ -195,29 +235,33 @@ class ISIC(Base):
                     self.data.append(data)
                     self.label.append(label)
                     
-                    if debug_mode and len(self.data) > 200:
-                        break
+                    # if debug_mode and len(self.data) > 200:
+                    #     break
                     
                 _tqdm.update(1)
         self.label = np.array(self.label)
         print('Finish loading data!')
 
 
-if __name__ == '__main__':
-    import yaml
-    config = yaml.load(open('./config/train_ernn_kl.yml', 'r', encoding='utf-8'), Loader=yaml.Loader)
-    p_train_img = config['data']['train_image_dir']
-    p_train_label = config['data']['train_image_label']
-    data_dir = config['data']['cache_dir']
-    train_npy = os.path.join(data_dir, 'data.npy')
-    label_npy = os.path.join(data_dir, 'label.npy')
+import yaml
+config = yaml.load(open('./config/isic2019.yaml', 'r', encoding='utf-8'), Loader=yaml.Loader)
+p_train_img = config['data']['train_image_dir']
+p_train_label = config['data']['train_image_label']
+data_dir = config['data']['cache_dir']
+data_name = config['data']['name']
+
+prebuild_data_file = data_name + '.data.npy'
+prebuild_label_file = data_name + '.label.npy'
+
+
+if __name__ == '__main__':    
+    train_npy = os.path.join(data_dir, prebuild_data_file)
+    label_npy = os.path.join(data_dir, prebuild_label_file)
     
-    os.makedirs(data_dir)
-    isic = ISIC(img_dir=p_train_img, label_dir=p_train_label, cache_dir=data_dir)
+    os.makedirs(data_dir, exist_ok=True)
+    isic = ISIC(img_dir=p_train_img, label_dir=p_train_label, cache_dir=data_dir, args=None)
     np.save(train_npy, isic.data)
     print('save data to', train_npy)
     
     np.save(label_npy, isic.label)
     print('save label to', label_npy) 
-    
-    wandb.login()

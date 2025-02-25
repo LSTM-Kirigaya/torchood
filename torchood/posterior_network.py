@@ -32,8 +32,7 @@ class PosteriorNetwork(nn.Module):
         return feature, logits, probs
 
     def criterion(self, logits: torch.Tensor, target: torch.Tensor, regr: float = 1e-5):
-        """
-        Loss function for Posterior Network (UCE loss).
+        """Loss function for Posterior Network (UCE loss).
 
         Args:
             logits (torch.Tensor): Classifier logits.

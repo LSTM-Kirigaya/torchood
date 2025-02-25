@@ -20,7 +20,7 @@ import wandb
 from sklearn.metrics import roc_auc_score
 
 from evaluation import *
-from datasets import ISIC
+from isic2019 import ISIC
 
 from torchood import *
 import models
@@ -77,9 +77,7 @@ def test_model(model: PosteriorNetwork, epoch, valid_loader_id, wandb_run: wandb
                 loss = model.criterion(logits, label)
                 valid_loss += loss.sum()
                 
-                pred = distance.softmax(dim=1)
-
-                probs_i.append(pred)
+                probs_i.append(probs)
                 _tqdm.update(1)
 
     
@@ -220,8 +218,6 @@ def main():
     class_split = (ID_labels, OOD_labels)
     num_class = len(class_split[0])
     
-    focal = config['model']['focal']
-    kl = config['model']['kl']
         
     batch_size = config['train']['batch_size']
     lr = float(config['train']['lr'])
