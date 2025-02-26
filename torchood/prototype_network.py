@@ -62,15 +62,18 @@ class PrototypeNetwork(nn.Module):
         
         return features, centers, distance, outputs
 
-    def regularization(self, features, centers, labels):
+    def regularization(self, features: torch.Tensor, centers: torch.Tensor, labels: torch.Tensor):
         distance = features - torch.t(centers)[labels]
         distance = torch.sum(torch.pow(distance,2),1, keepdim=True)
         distance = torch.sum(distance, 0, keepdim=True) / features.shape[0]
         return distance
 
 
-    def criterion(self, features, centers, outputs, labels, reg: float = .001):            
-        loss_1 = F.nll_loss(outputs, labels)
+    def criterion(self, features, centers, outputs, labels, reg: float = .001):
+        if labels.max() >= self.num_classes:
+            raise ValueError(f'label\'s value must in range of [0, {self.num_classes - 1}], but max(label) = {labels.max()}')
+        
+        loss_1 = F.nll_loss(outputs, labels)        
         loss_2 = self.regularization(features, centers, labels)
         loss = loss_1 + reg * loss_2
         return loss

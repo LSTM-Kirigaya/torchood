@@ -56,7 +56,7 @@ def zero_cosine_rampdown(current, epochs):
 
 
 def test_model(model: PosteriorNetwork, epoch, valid_loader_id, wandb_run: wandb.wandb_sdk.wandb_run.Run, valid_id_best, valid_pent, 
-               valid_loader_ood, model_dir):
+               valid_loader_ood):
     # eval_epoch()
     model.eval()
     with torch.no_grad():
@@ -95,7 +95,7 @@ def test_model(model: PosteriorNetwork, epoch, valid_loader_id, wandb_run: wandb
             if current >= valid_id_best[key]['value']:
                 valid_id_best[key]['value'] = current
                 valid_id_best[key]['epoch'] = epoch
-                torch.save(model, f'{model_dir}/best_{key}_distance.pth')
+                # torch.save(model, f'{model_dir}/best_{key}_distance.pth')
                 
                 print(f'best {key} model saved in epoch {epoch}!')
             best_value = valid_id_best[key]['value']
@@ -157,7 +157,7 @@ def test_model(model: PosteriorNetwork, epoch, valid_loader_id, wandb_run: wandb
     if result_pent['AUROC'] >= valid_pent['value']:
         valid_pent['value'] = result_pent['AUROC']
         valid_pent['epoch'] = epoch
-        torch.save(model, f'{model_dir}/best_ent_auroc.pth')
+        # torch.save(model, f'{model_dir}/best_ent_auroc.pth')
         print(f'best ent model saved in epoch {epoch}!')
 
 
@@ -220,10 +220,6 @@ def main():
     lr = float(config['train']['lr'])
     wd = float(config['train']['wd'])
     max_epochs = config['train']['max_epochs']
-    save_dir = config['train']['save_dir']
-    
-    logs_dir = time.strftime('%Y-%m-%d_%H_%M', time.localtime())
-    logs_dir = os.path.join(save_dir, logs_dir)
     
     data_dir = config['data']['cache_dir']
     # train_npy = os.path.join(data_dir, 'data.npy')
@@ -272,11 +268,6 @@ def main():
     )
     
     for fold in range(5):
-        log_dir = os.path.join(logs_dir, f'fold_{fold}')
-        tensor_dir = os.path.join(log_dir, 'tensor')
-        model_dir = os.path.join(log_dir, 'models')
-        check_dir(tensor_dir)
-        check_dir(model_dir)
 
         # experiment initialization
         torch.manual_seed(manual_seed)
@@ -327,7 +318,7 @@ def main():
 
         for epoch in range(max_epochs + 1):
             test_model(model, epoch, valid_loader_id, run, valid_id_best, 
-                        valid_pent, valid_loader_ood, model_dir)
+                        valid_pent, valid_loader_ood)
             
             train_model(model, epoch, train_loader, optimizer, run, max_epochs)
 

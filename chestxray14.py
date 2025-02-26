@@ -11,20 +11,20 @@ import cv2
 
 
 label_to_id = {
-    "Atelectasis": 0,
-    "Cardiomegaly": 1,
-    "Effusion": 2,
-    "Infiltration": 3,
-    "Mass": 4,
-    "Nodule": 5,
-    "Pneumonia": 6,
-    "Pneumothorax": 7,
-    "Consolidation": 8,
-    "Edema": 9,
-    "Emphysema": 10,
-    "Fibrosis": 11,
-    "Pleural_Thickening": 12,
-    "Hernia": 13,
+    "Atelectasis": -1,
+    "Cardiomegaly": 0,
+    "Effusion": 1,
+    "Infiltration": 2,
+    "Mass": 3,
+    "Nodule": 4,
+    "Pneumonia": 5,
+    "Pneumothorax": 6,
+    "Consolidation": 7,
+    "Edema": 8,
+    "Emphysema": 9,
+    "Fibrosis": 10,
+    "Pleural_Thickening": 11,
+    "Hernia": 12,
     "No Finding": -1  # 如果没有发现疾病，标记为 -1
 }
 
@@ -57,6 +57,12 @@ class Subset(Dataset):
     
         if self.transform is not None:
             data = self.transform(data)
+        # 标签映射，确保 ID 是连续的，OOD 也是连续的
+        if label in id_labels_mapper:
+            label = id_labels_mapper[label]
+        elif label in ood_labels_mapper:
+            label = ood_labels_mapper[label]
+        
         return data, label
 
     def __len__(self):
@@ -246,19 +252,17 @@ class ISIC(Base):
         # data_dir is something like /data/zhelonghuang/datasets/chestxray-14/images
         for image in tqdm(os.listdir(self.data_dir), ncols=100, colour='green'):
             if image.endswith('.png'):
-                label = get_label_ids(image)
-                if label:
+                label = int(get_label_ids(image))
+                if label and label >= 0:
                     image_paths.append(
-                        (os.path.join(self.data_dir, image), int(label))
+                        (os.path.join(self.data_dir, image), label)
                     )
 
         print("get image pairs num: {}".format(len(image_paths)))
 
         with tqdm(total=len(image_paths), ncols=100, colour='green') as _tqdm:
             for step, (p_img, label) in enumerate(image_paths):
-                data = cv2.imread(p_img, 'L')
-                print(data.shape)
-                raise False
+                data = cv2.imread(p_img)[..., :3]
                 data = cv2.resize(data, (224, 224))
                 
                 self.data.append(data)
@@ -279,6 +283,20 @@ p_train_img = config['data']['train_image_dir']
 p_train_label = config['data']['train_image_label']
 data_dir = config['data']['cache_dir']
 data_name = config['data']['name']
+
+id_labels = config['model']['ID_labels']
+ood_labels = config['model']['OOD_labels']
+
+# 构建 label 映射（训练加载数据时使用）
+id_labels_mapper = {}
+ood_labels_mapper = {}
+id_counter = 0
+for label_id in id_labels:
+    id_labels_mapper[label_id] = id_counter
+    id_counter += 1
+for label_id in ood_labels:
+    ood_labels_mapper[label_id] = id_counter
+    id_counter += 1
 
 prebuild_data_file = data_name + '.data.npy'
 prebuild_label_file = data_name + '.label.npy'
