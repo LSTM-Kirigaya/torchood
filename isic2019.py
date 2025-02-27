@@ -38,6 +38,13 @@ class Subset(Dataset):
     
         if self.transform is not None:
             data = self.transform(data)
+            
+        # 标签映射，确保 ID 是连续的，OOD 也是连续的
+        if label in id_labels_mapper:
+            label = id_labels_mapper[label]
+        elif label in ood_labels_mapper:
+            label = ood_labels_mapper[label]
+
         return data, label
 
     def __len__(self):
@@ -70,8 +77,12 @@ class Base(Dataset):
     
         if self.transform is not None:
             data = self.transform(data)
-        if self.label_transform is not None:
-            label = self.label_transform(label)
+
+        # 标签映射，确保 ID 是连续的，OOD 也是连续的
+        if label in id_labels_mapper:
+            label = id_labels_mapper[label]
+        elif label in ood_labels_mapper:
+            label = ood_labels_mapper[label]
             
         return data, label
 
@@ -243,6 +254,20 @@ p_train_img = config['data']['train_image_dir']
 p_train_label = config['data']['train_image_label']
 data_dir = config['data']['cache_dir']
 data_name = config['data']['name']
+
+id_labels = config['model']['ID_labels']
+ood_labels = config['model']['OOD_labels']
+
+# 构建 label 映射（训练加载数据时使用）
+id_labels_mapper = {}
+ood_labels_mapper = {}
+id_counter = 0
+for label_id in id_labels:
+    id_labels_mapper[label_id] = id_counter
+    id_counter += 1
+for label_id in ood_labels:
+    ood_labels_mapper[label_id] = id_counter
+    id_counter += 1
 
 prebuild_data_file = data_name + '.data.npy'
 prebuild_label_file = data_name + '.label.npy'

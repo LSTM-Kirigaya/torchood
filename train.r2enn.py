@@ -62,7 +62,8 @@ def test_model(
     wandb_run: wandb.wandb_sdk.wandb_run.Run,
     valid_id_best,
     valid_pent, 
-    valid_loader_ood
+    valid_loader_ood,
+    model_dir
 ):
     # eval_epoch()
     model.eval()
@@ -76,6 +77,7 @@ def test_model(
                 label = torch.tensor(label).to('cuda')
                 
                 feature, evidence, prob = model(data)
+            
                 loss = model.criterion(evidence, label)
   
                 # min_distance = torch.min(- distance, dim=1)
@@ -102,7 +104,7 @@ def test_model(
             if current >= valid_id_best[key]['value']:
                 valid_id_best[key]['value'] = current
                 valid_id_best[key]['epoch'] = epoch
-                # torch.save(model, f'{model_dir}/best_{key}_distance.pth')
+                torch.save(model, f'{model_dir}/best_{key}_distance.pth')
                 
                 print(f'best {key} model saved in epoch {epoch}!')
             best_value = valid_id_best[key]['value']
@@ -165,7 +167,7 @@ def test_model(
     if result_pent['AUROC'] >= valid_pent['value']:
         valid_pent['value'] = result_pent['AUROC']
         valid_pent['epoch'] = epoch
-        # torch.save(model, f'{model_dir}/best_ent_auroc.pth')
+        torch.save(model, f'{model_dir}/best_ent_auroc.pth')
         print(f'best ent model saved in epoch {epoch}!')
 
 
@@ -223,7 +225,11 @@ def main():
     num_class = len(class_split[0])
     data_name = config['data']['name']
     
-        
+    model_dir = config['train']['save_dir']
+    os.makedirs(model_dir, exist_ok=True)
+    model_dir = os.path.join(model_dir, args.name)
+    os.makedirs(model_dir, exist_ok=True)
+       
     batch_size = config['train']['batch_size']
     lr = float(config['train']['lr'])
     wd = float(config['train']['wd'])
@@ -325,7 +331,7 @@ def main():
 
         for epoch in range(max_epochs + 1):
             test_model(model, epoch, valid_loader_id, run, valid_id_best, 
-                        valid_pent, valid_loader_ood)
+                        valid_pent, valid_loader_ood, model_dir)
             
             train_model(model, epoch, train_loader, optimizer, run, max_epochs)
 

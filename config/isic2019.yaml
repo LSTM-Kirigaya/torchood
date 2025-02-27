@@ -16,4 +16,4 @@ train:
   lr: 1e-4
   wd: 1e-4
   max_epochs: 100
-  save_dir: './runs'
+  save_dir: './checkpoints'

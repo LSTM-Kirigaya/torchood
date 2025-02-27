@@ -169,7 +169,7 @@ class RedundancyRemovingEvidentialNeuralNetwork(EvidenceNeuralNetwork):
 
         alpha_0 = alpha.sum(1).unsqueeze(-1).repeat(1, self.num_class)
         
-        label = nn.functional.one_hot(label, num_classes=self.num_class)    
+        label = nn.functional.one_hot(label, num_classes=self.num_class)
         loss_ece = torch.sum(label * (torch.digamma(alpha_0) - torch.digamma(alpha)), dim=1)
         loss_ece = torch.mean(loss_ece)
 
